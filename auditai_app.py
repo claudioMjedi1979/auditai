@@ -7,7 +7,7 @@ st.set_page_config(page_title="AuditAI - Dashboard", layout="wide")
 st.title("📊 AuditAI - Monitoramento de Compliance com IA")
 
 # --- Funções ---
-API_BASE_URL = "http://localhost:8000"
+API_BASE_URL = "https://auditai-api.onrender.com"
 
 @st.cache_data(show_spinner=False)
 def carregar_dados(endpoint="/relatorio"):
@@ -65,12 +65,6 @@ if aba == "Relatório Completo":
     - `data` (formato: `YYYY-MM-DD HH:MM:SS`)
     - `status` (Pendente, Aprovado, Rejeitado)
     - `justificativa` (opcional)
-
-    **Exemplo de linha válida:**
-
-    ```
-    Empresa A,15000.0,2025-03-25 10:30:00,Pendente,Aguardando documentos
-    ```
     """)
 
     arquivo_csv = st.file_uploader("📎 Escolha um arquivo CSV", type="csv")
