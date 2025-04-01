@@ -6,7 +6,6 @@ st.set_page_config(page_title="AuditAI - Dashboard", layout="wide")
 
 st.title("📊 AuditAI - Monitoramento de Compliance com IA")
 
-# --- Funções ---
 API_BASE_URL = "https://auditai-api.onrender.com"
 
 @st.cache_data(show_spinner=False)
@@ -22,10 +21,21 @@ def carregar_dados(endpoint="/relatorio"):
         st.error(f"Erro de conexão: {str(e)}")
         return pd.DataFrame()
 
-# --- Menu de navegação ---
+@st.cache_data(show_spinner=False) #pip install --upgrade requests pandas
+def carregar_auditorias():
+    try:
+        response = requests.get(API_BASE_URL + "/auditoria")
+        if response.status_code == 200:
+            return response.json()["auditorias"]
+        else:
+            st.error(f"Erro ao consultar auditoria: {response.status_code}")
+            return []
+    except Exception as e:
+        st.error(f"Erro de conexão: {str(e)}")
+        return []
+
 aba = st.sidebar.radio("Navegação", ["Relatório Completo", "Auditorias com Violações"])
 
-# --- Tela: Relatório Completo com formulário e upload ---
 if aba == "Relatório Completo":
     st.subheader("📝 Cadastrar Nova Transação")
     with st.form("form_transacao"):
@@ -103,15 +113,23 @@ if aba == "Relatório Completo":
         st.dataframe(df, use_container_width=True)
         st.download_button("⬇️ Baixar como CSV", df.to_csv(index=False), "relatorio_auditai.csv", "text/csv")
 
-# --- Tela: Auditorias com Violações ---
 elif aba == "Auditorias com Violações":
-    st.subheader("🔍 Transações com Violações e Anomalias")
-    df = carregar_dados("/auditoria")
-    if "violacoes" in df.columns:
-        st.dataframe(df, use_container_width=True)
-    elif "violacoes" in df:
-        df_violacoes = pd.DataFrame(df["violacoes"])
-        st.dataframe(df_violacoes, use_container_width=True)
-        st.download_button("⬇️ Baixar Violações", df_violacoes.to_csv(index=False), "violacoes_auditai.csv", "text/csv")
-    else:
-        st.warning("Nenhuma violação encontrada.")
+    st.subheader("🔍 Transações com Violações de Compliance")
+    dados = carregar_auditorias()
+    if dados:
+        for item in dados:
+            with st.expander(f"Transação #{item['id']} - {item['cliente']}"):
+                st.markdown(f"**Valor:** R$ {item['valor_transacao']:.2f}")
+                st.markdown(f"**Data:** {item['data']}")
+                st.markdown(f"**Status:** {item['status']}")
+                st.markdown(f"**Justificativa:** {item['justificativa'] or 'Nenhuma'}")
+
+                st.markdown("### 🛑 Violações Regulamentares")
+                if "violacoes_compliance" in item and item["violacoes_compliance"]:
+                    for violacao in item["violacoes_compliance"]:
+                        st.warning(f"- **{violacao['descricao']}**")
+                        st.markdown(f"  • Origem: {violacao['origem']}")
+                        st.markdown(f"  • Ação: {violacao['acao_recomendada']}")
+                        st.markdown(f"  • Base Legal: {violacao['base_legal']}")
+                else:
+                    st.success("Nenhuma violação encontrada.")
