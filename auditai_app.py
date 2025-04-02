@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
+import matplotlib.pyplot as plt
 
 st.set_page_config(page_title="AuditAI - Dashboard", layout="wide")
 
@@ -21,7 +22,7 @@ def carregar_dados(endpoint="/relatorio"):
         st.error(f"Erro de conexão: {str(e)}")
         return pd.DataFrame()
 
-@st.cache_data(show_spinner=False) #pip install --upgrade requests pandas
+@st.cache_data(show_spinner=False)
 def carregar_auditorias():
     try:
         response = requests.get(API_BASE_URL + "/auditoria")
@@ -34,7 +35,20 @@ def carregar_auditorias():
         st.error(f"Erro de conexão: {str(e)}")
         return []
 
-aba = st.sidebar.radio("Navegação", ["Relatório Completo", "Auditorias com Violações"])
+@st.cache_data(show_spinner=False)
+def carregar_feedbacks():
+    try:
+        response = requests.get(f"{API_BASE_URL}/feedbacks")
+        if response.status_code == 200:
+            return pd.DataFrame(response.json()["feedbacks"])
+        else:
+            st.error("Erro ao carregar feedbacks")
+            return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Erro ao conectar com a API: {e}")
+        return pd.DataFrame()
+
+aba = st.sidebar.radio("Navegação", ["Relatório Completo", "Auditorias com Violações", "📊 Relatório de Auditoria Manual"])
 
 if aba == "Relatório Completo":
     st.subheader("📝 Cadastrar Nova Transação")
@@ -133,3 +147,35 @@ elif aba == "Auditorias com Violações":
                         st.markdown(f"  • Base Legal: {violacao['base_legal']}")
                 else:
                     st.success("Nenhuma violação encontrada.")
+
+elif aba == "📊 Relatório de Auditoria Manual":
+    st.subheader("📋 Rótulos Aplicados por Cliente e Mês")
+    df_fb = carregar_feedbacks()
+
+    if not df_fb.empty:
+        df_fb["data_registro"] = pd.to_datetime(df_fb["data_registro"])
+        df_fb["mes"] = df_fb["data_registro"].dt.to_period("M").astype(str)
+
+        st.write("### Tabela de Feedbacks Registrados")
+        st.dataframe(df_fb[["id_transacao", "cliente", "rotulo", "observacao", "data_registro"]], use_container_width=True)
+
+        st.markdown("---")
+        st.write("### Gráfico de Rótulos por Cliente")
+        resumo = df_fb.groupby(["cliente", "rotulo"]).size().unstack(fill_value=0)
+        fig, ax = plt.subplots(figsize=(10, 5))
+        resumo.plot(kind="bar", stacked=True, ax=ax)
+        ax.set_ylabel("Total de Feedbacks")
+        ax.set_xlabel("Cliente")
+        ax.set_title("Feedbacks por Cliente e Tipo de Rótulo")
+        st.pyplot(fig)
+
+        st.markdown("---")
+        st.write("### Rótulos por Mês")
+        resumo_mes = df_fb.groupby(["mes", "rotulo"]).size().unstack(fill_value=0)
+        fig2, ax2 = plt.subplots(figsize=(10, 4))
+        resumo_mes.plot(kind="bar", ax=ax2)
+        ax2.set_title("Distribuição de Rótulos por Mês")
+        st.pyplot(fig2)
+
+    else:
+        st.info("Nenhum feedback registrado ainda.")
