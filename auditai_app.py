@@ -1,4 +1,3 @@
-
 import streamlit as st
 import pandas as pd
 import requests
@@ -21,8 +20,10 @@ def carregar(endpoint):
         st.error(f"Erro de conexão: {str(e)}")
         return {}
 
+# Seletor de navegação lateral
 aba = st.sidebar.radio("Navegação", ["📋 Transações", "🚨 Auditoria", "📝 Feedback"])
 
+# --- Aba 1: Cadastro e relatório de transações ---
 if aba == "📋 Transações":
     st.subheader("📝 Cadastrar Nova Transação")
     with st.form("form_transacao"):
@@ -81,10 +82,12 @@ if aba == "📋 Transações":
         st.dataframe(df, use_container_width=True)
         st.download_button("⬇️ Baixar como CSV", df.to_csv(index=False), "relatorio_auditai.csv", "text/csv")
 
+# --- Aba 2: Auditoria com violações ---
 elif aba == "🚨 Auditoria":
     st.subheader("🔍 Transações com Violações de Compliance")
-    dados = carregar("/auditoria").get("auditorias", [])
-    if dados:
+    resposta = carregar("/auditoria")
+    if isinstance(resposta, dict) and "auditorias" in resposta:
+        dados = resposta["auditorias"]
         for item in dados:
             with st.expander(f"Transação #{item['id']} - {item['cliente']}"):
                 st.markdown(f"**Data:** {item['data']}")
@@ -94,11 +97,16 @@ elif aba == "🚨 Auditoria":
                 st.markdown("### 🛑 Violações")
                 for v in item.get("violacoes_compliance", []):
                     st.warning(f"- {v['descricao']}")
-                    st.markdown(f"  • Origem: {v['origem']}  \n  • Ação: {v['acao_recomendada']}")
+                    st.markdown(f"""  • Origem: {v['origem']}  
+  • Ação: {v['acao_recomendada']}""")
+    else:
+        st.error("❌ Não foi possível carregar as auditorias.")
 
+# --- Aba 3: Feedback do auditor ---
 elif aba == "📝 Feedback":
     st.subheader("📝 Feedback de Auditoria")
-    dados = carregar("/auditoria").get("auditorias", [])
+    resposta = carregar("/auditoria")
+    dados = resposta.get("auditorias", []) if isinstance(resposta, dict) else []
     if not dados:
         st.warning("Nenhuma auditoria carregada.")
     for audit in dados:
@@ -112,7 +120,8 @@ elif aba == "📝 Feedback":
                 st.markdown("### Violações:")
                 for violacao in audit["violacoes_compliance"]:
                     st.warning(f"- {violacao['descricao']}")
-                    st.markdown(f"  • Origem: {violacao['origem']}  \n  • Ação: {violacao['acao_recomendada']}")
+                    st.markdown(f"""  • Origem: {violacao['origem']}  
+  • Ação: {violacao['acao_recomendada']}""")
 
             st.markdown("### 📌 Enviar Feedback")
             col1, col2 = st.columns(2)
@@ -134,3 +143,4 @@ elif aba == "📝 Feedback":
                         st.error(f"Erro ao enviar: {r.text}")
                 except Exception as e:
                     st.error(f"Erro de conexão: {str(e)}")
+# --- Fim do código ---
