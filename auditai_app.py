@@ -1,11 +1,37 @@
+
 import streamlit as st
 import pandas as pd
 import requests
+from datetime import datetime
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="AuditAI - Dashboard", layout="wide")
+st.set_page_config(
+    page_title="AuditAI - Dashboard",
+    layout="wide",
+    page_icon="📊"
+)
 
-st.title("📊 AuditAI - Monitoramento de Compliance com IA")
+# --- Logo e título ---
+st.markdown(
+    """
+    <style>
+        .main { background-color: #f5f7fa; }
+        h1 { color: #1c3f5d; }
+        .stButton>button {
+            background-color: #1c3f5d;
+            color: white;
+        }
+        .css-1aumxhk {
+            background-color: #e4ebf5;
+        }
+    </style>
+    <div style='display: flex; align-items: center;'>
+        <img src='https://raw.githubusercontent.com/claudioMjedi1979/auditai-api/main/assets/logo_auditai.png' width='60' style='margin-right: 10px;'>
+        <h1>AuditAI - Monitoramento de Compliance com IA</h1>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 API_BASE_URL = "https://auditai-api.onrender.com"
 
@@ -35,20 +61,7 @@ def carregar_auditorias():
         st.error(f"Erro de conexão: {str(e)}")
         return []
 
-@st.cache_data(show_spinner=False)
-def carregar_feedbacks():
-    try:
-        response = requests.get(f"{API_BASE_URL}/feedbacks")
-        if response.status_code == 200:
-            return pd.DataFrame(response.json()["feedbacks"])
-        else:
-            st.error("Erro ao carregar feedbacks")
-            return pd.DataFrame()
-    except Exception as e:
-        st.error(f"Erro ao conectar com a API: {e}")
-        return pd.DataFrame()
-
-aba = st.sidebar.radio("Navegação", ["Relatório Completo", "Auditorias com Violações", "📊 Relatório de Auditoria Manual"])
+aba = st.sidebar.radio("Navegação", ["Relatório Completo", "Auditorias com Violações"])
 
 if aba == "Relatório Completo":
     st.subheader("📝 Cadastrar Nova Transação")
@@ -81,23 +94,12 @@ if aba == "Relatório Completo":
 
     st.divider()
     st.subheader("📤 Upload de Transações via CSV")
-    st.markdown("""
-    Envie um arquivo `.csv` com os seguintes campos:
-
-    - `cliente` (texto)
-    - `valor_transacao` (número)
-    - `data` (formato: `YYYY-MM-DD HH:MM:SS`)
-    - `status` (Pendente, Aprovado, Rejeitado)
-    - `justificativa` (opcional)
-    """)
-
     arquivo_csv = st.file_uploader("📎 Escolha um arquivo CSV", type="csv")
 
     if arquivo_csv is not None:
         try:
             df_upload = pd.read_csv(arquivo_csv)
-            inseridas = 0
-            falhas = 0
+            inseridas, falhas = 0, 0
             if set(['cliente', 'valor_transacao', 'data', 'status', 'justificativa']).issubset(df_upload.columns):
                 for _, row in df_upload.iterrows():
                     payload = {
@@ -109,15 +111,13 @@ if aba == "Relatório Completo":
                     }
                     try:
                         r = requests.post(f"{API_BASE_URL}/transacao", json=payload)
-                        if r.status_code == 200:
-                            inseridas += 1
-                        else:
-                            falhas += 1
+                        inseridas += r.status_code == 200
+                        falhas += r.status_code != 200
                     except:
                         falhas += 1
-                st.success(f"✅ {inseridas} transações importadas com sucesso. ❌ {falhas} falharam.")
+                st.success(f"✅ {inseridas} transações importadas. ❌ {falhas} falharam.")
             else:
-                st.error("❌ O CSV deve conter as colunas: cliente, valor_transacao, data, status, justificativa")
+                st.error("CSV deve conter as colunas: cliente, valor_transacao, data, status, justificativa")
         except Exception as e:
             st.error(f"Erro ao processar o CSV: {str(e)}")
 
@@ -147,35 +147,3 @@ elif aba == "Auditorias com Violações":
                         st.markdown(f"  • Base Legal: {violacao['base_legal']}")
                 else:
                     st.success("Nenhuma violação encontrada.")
-
-elif aba == "📊 Relatório de Auditoria Manual":
-    st.subheader("📋 Rótulos Aplicados por Cliente e Mês")
-    df_fb = carregar_feedbacks()
-
-    if not df_fb.empty:
-        df_fb["data_registro"] = pd.to_datetime(df_fb["data_registro"])
-        df_fb["mes"] = df_fb["data_registro"].dt.to_period("M").astype(str)
-
-        st.write("### Tabela de Feedbacks Registrados")
-        st.dataframe(df_fb[["id_transacao", "cliente", "rotulo", "observacao", "data_registro"]], use_container_width=True)
-
-        st.markdown("---")
-        st.write("### Gráfico de Rótulos por Cliente")
-        resumo = df_fb.groupby(["cliente", "rotulo"]).size().unstack(fill_value=0)
-        fig, ax = plt.subplots(figsize=(10, 5))
-        resumo.plot(kind="bar", stacked=True, ax=ax)
-        ax.set_ylabel("Total de Feedbacks")
-        ax.set_xlabel("Cliente")
-        ax.set_title("Feedbacks por Cliente e Tipo de Rótulo")
-        st.pyplot(fig)
-
-        st.markdown("---")
-        st.write("### Rótulos por Mês")
-        resumo_mes = df_fb.groupby(["mes", "rotulo"]).size().unstack(fill_value=0)
-        fig2, ax2 = plt.subplots(figsize=(10, 4))
-        resumo_mes.plot(kind="bar", ax=ax2)
-        ax2.set_title("Distribuição de Rótulos por Mês")
-        st.pyplot(fig2)
-
-    else:
-        st.info("Nenhum feedback registrado ainda.")
