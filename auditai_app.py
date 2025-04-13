@@ -135,6 +135,7 @@ elif aba == "📝 Feedback":
                     st.error(f"Erro de conexão: {str(e)}")
 
 
+
 # Riscos & Controles
 elif aba == "🛡️ Riscos & Controles":
     st.subheader("Cadastro de Riscos")
@@ -159,33 +160,20 @@ elif aba == "🛡️ Riscos & Controles":
             if r.status_code == 200:
                 st.success("✅ Risco cadastrado com sucesso!")
 
-    
     st.subheader("📤 Upload de Riscos via CSV")
     st.markdown("Envie um `.csv` com colunas: `titulo`, `descricao`, `categoria`, `probabilidade`, `impacto`, `status`")
-    arquivo_risco = st.file_uploader("Escolha um arquivo CSV de riscos", type="csv", key="upload_riscos")
-
+    arquivo_risco = st.file_uploader("CSV de Riscos", type="csv", key="upload_riscos")
     if arquivo_risco:
         df_riscos = pd.read_csv(arquivo_risco)
         inseridos, erros = 0, 0
         for _, row in df_riscos.iterrows():
-            payload = {
-                "titulo": row["titulo"],
-                "descricao": row["descricao"],
-                "categoria": row["categoria"],
-                "probabilidade": row["probabilidade"],
-                "impacto": row["impacto"],
-                "status": row["status"]
-            }
+            payload = row.to_dict()
             try:
                 r = requests.post(f"{API_BASE_URL}/risco", json=payload)
-                if r.status_code == 200:
-                    inseridos += 1
-                else:
-                    erros += 1
+                inseridos += 1 if r.status_code == 200 else 0
             except:
                 erros += 1
-        st.success(f"{inseridos} riscos inseridos com sucesso. {erros} erros.")
-
+        st.success(f"{inseridos} riscos inseridos. {erros} com erro.")
 
     st.divider()
     st.subheader("Cadastro de Controles")
@@ -211,7 +199,94 @@ elif aba == "🛡️ Riscos & Controles":
                 }
                 r = requests.post(f"{API_BASE_URL}/controle", json=payload)
                 if r.status_code == 200:
-                    st.success("✅ Controle cadastrado!")
+                    st.success("✅ Controle cadastrado com sucesso!")
+
+    st.subheader("📤 Upload de Controles via CSV")
+    st.markdown("Envie um `.csv` com colunas: `id_risco`, `nome`, `tipo`, `descricao`, `eficacia`, `responsavel`")
+    arquivo_controle = st.file_uploader("CSV de Controles", type="csv", key="upload_controles")
+    if arquivo_controle:
+        df_controles = pd.read_csv(arquivo_controle)
+        inseridos, erros = 0, 0
+        for _, row in df_controles.iterrows():
+            payload = row.to_dict()
+            try:
+                r = requests.post(f"{API_BASE_URL}/controle", json=payload)
+                inseridos += 1 if r.status_code == 200 else 0
+            except:
+                erros += 1
+        st.success(f"{inseridos} controles inseridos. {erros} com erro.")
+
+    st.divider()
+    st.subheader("📋 Lista de Riscos Cadastrados")
+    for risco in riscos:
+        with st.expander(f"🔹 {risco['titulo']} ({risco['categoria']})"):
+            st.markdown(f"- **Descrição:** {risco['descricao']}")
+            st.markdown(f"- **Probabilidade:** {risco['probabilidade']}")
+            st.markdown(f"- **Impacto:** {risco['impacto']}")
+            st.markdown(f"- **Status:** {risco['status']}")
+            if st.button("❌ Excluir Risco", key=f"del_risco_{risco['id']}"):
+                try:
+                    r = requests.delete(f"{API_BASE_URL}/risco/{risco['id']}")
+                    if r.status_code == 200:
+                        st.success("Risco excluído com sucesso.")
+                except Exception as e:
+                    st.error(f"Erro ao excluir risco: {e}")
+
+    st.subheader("📋 Lista de Controles Cadastrados")
+    controles = carregar("/controles")
+    for ctrl in controles:
+        with st.expander(f"🛡️ {ctrl['nome']} (Eficiência: {ctrl['eficacia']})"):
+            st.markdown(f"- **Descrição:** {ctrl['descricao']}")
+            st.markdown(f"- **Tipo:** {ctrl['tipo']}")
+            st.markdown(f"- **Responsável:** {ctrl['responsavel']}")
+            if st.button("❌ Excluir Controle", key=f"del_ctrl_{ctrl['id']}"):
+                try:
+                    r = requests.delete(f"{API_BASE_URL}/controle/{ctrl['id']}")
+                    if r.status_code == 200:
+                        st.success("Controle excluído com sucesso.")
+                except Exception as e:
+                    st.error(f"Erro ao excluir controle: {e}")
+                    st.divider()
+    st.subheader("🔎 Painel de Visualização de Riscos e Controles")
+
+    # Filtros
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        filtro_categoria = st.selectbox("Filtrar por Categoria", ["Todos"] + list(df["categoria"].dropna().unique()) if 'df' in locals() else ["Todos"])
+    with col2:
+        filtro_status = st.selectbox("Filtrar por Status", ["Todos", "Aberto", "Mitigado", "Encerrado"])
+    with col3:
+        filtro_eficacia = st.selectbox("Filtrar por Eficácia do Controle", ["Todos", "Alta", "Média", "Baixa"])
+
+    # Carregar dados
+    riscos = carregar("/riscos")
+    controles = carregar("/controles")
+
+    if isinstance(riscos, list) and isinstance(controles, list):
+        df_riscos = pd.DataFrame(riscos)
+        df_controles = pd.DataFrame(controles)
+
+        # Aplicar filtros em riscos
+        if filtro_categoria != "Todos":
+            df_riscos = df_riscos[df_riscos["categoria"] == filtro_categoria]
+        if filtro_status != "Todos":
+            df_riscos = df_riscos[df_riscos["status"] == filtro_status]
+
+        # Mostrar tabela de riscos
+        st.markdown("### 📋 Riscos Cadastrados")
+        st.dataframe(df_riscos, use_container_width=True)
+
+        # Aplicar filtro em controles
+        if filtro_eficacia != "Todos":
+            df_controles = df_controles[df_controles["eficacia"] == filtro_eficacia]
+
+        # Mostrar tabela de controles
+        st.markdown("### 🧩 Controles Cadastrados")
+        st.dataframe(df_controles, use_container_width=True)
+    else:
+        st.warning("Erro ao carregar riscos ou controles para exibição.")
+
+
     
 
 # Matriz de Riscos
