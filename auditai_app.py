@@ -134,6 +134,7 @@ elif aba == "📝 Feedback":
                 except Exception as e:
                     st.error(f"Erro de conexão: {str(e)}")
 
+
 # Riscos & Controles
 elif aba == "🛡️ Riscos & Controles":
     st.subheader("Cadastro de Riscos")
@@ -157,6 +158,34 @@ elif aba == "🛡️ Riscos & Controles":
             r = requests.post(f"{API_BASE_URL}/risco", json=payload)
             if r.status_code == 200:
                 st.success("✅ Risco cadastrado com sucesso!")
+
+    
+    st.subheader("📤 Upload de Riscos via CSV")
+    st.markdown("Envie um `.csv` com colunas: `titulo`, `descricao`, `categoria`, `probabilidade`, `impacto`, `status`")
+    arquivo_risco = st.file_uploader("Escolha um arquivo CSV de riscos", type="csv", key="upload_riscos")
+
+    if arquivo_risco:
+        df_riscos = pd.read_csv(arquivo_risco)
+        inseridos, erros = 0, 0
+        for _, row in df_riscos.iterrows():
+            payload = {
+                "titulo": row["titulo"],
+                "descricao": row["descricao"],
+                "categoria": row["categoria"],
+                "probabilidade": row["probabilidade"],
+                "impacto": row["impacto"],
+                "status": row["status"]
+            }
+            try:
+                r = requests.post(f"{API_BASE_URL}/risco", json=payload)
+                if r.status_code == 200:
+                    inseridos += 1
+                else:
+                    erros += 1
+            except:
+                erros += 1
+        st.success(f"{inseridos} riscos inseridos com sucesso. {erros} erros.")
+
 
     st.divider()
     st.subheader("Cadastro de Controles")
@@ -183,6 +212,7 @@ elif aba == "🛡️ Riscos & Controles":
                 r = requests.post(f"{API_BASE_URL}/controle", json=payload)
                 if r.status_code == 200:
                     st.success("✅ Controle cadastrado!")
+    
 
 # Matriz de Riscos
 elif aba == "📈 Matriz de Riscos":
