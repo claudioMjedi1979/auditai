@@ -195,59 +195,48 @@ elif aba == "🛡️ Riscos & Controles":
                     "tipo": tipo,
                     "descricao": descricao,
                     "eficacia": eficacia,
-                    "responsavel": responsavel
+                    "responsavel": responsavel,
+                    "ativo": ativo,
+                    "data_criacao": data_criacao
+
                 }
                 r = requests.post(f"{API_BASE_URL}/controle", json=payload)
                 if r.status_code == 200:
                     st.success("✅ Controle cadastrado com sucesso!")
 
     st.subheader("📤 Upload de Controles via CSV")
-    st.markdown("Envie um `.csv` com colunas: `id_risco`, `nome`, `tipo`, `descricao`, `eficacia`, `responsavel`")
-    arquivo_controle = st.file_uploader("CSV de Controles", type="csv", key="upload_controles")
-    if arquivo_controle:
-        df_controles = pd.read_csv(arquivo_controle)
-        inseridos, erros = 0, 0
-        for _, row in df_controles.iterrows():
-            payload = row.to_dict()
-            try:
-                r = requests.post(f"{API_BASE_URL}/controle", json=payload)
-                inseridos += 1 if r.status_code == 200 else 0
-            except:
+st.markdown("Envie um `.csv` com colunas: `id_risco`, `nome`, `tipo`, `descricao`, `eficacia`, `responsavel`, `ativo`, `data_criacao`")
+arquivo_controle = st.file_uploader("CSV de Controles", type="csv", key="upload_controles")
+
+if arquivo_controle:
+    df_controles = pd.read_csv(arquivo_controle)
+    inseridos, erros = 0, 0
+
+    for _, row in df_controles.iterrows():
+        try:
+            payload = {
+                "id_risco": int(row["id_risco"]),
+                "nome": row["nome"],
+                "tipo": row["tipo"],
+                "descricao": row["descricao"],
+                "eficacia": row["eficacia"],
+                "responsavel": row["responsavel"],
+                "ativo": bool(row["ativo"]) if str(row["ativo"]).lower() in ["true", "1", "sim"] else False,
+                "data_criacao": pd.to_datetime(row["data_criacao"]).isoformat()
+            }
+
+            r = requests.post(f"{API_BASE_URL}/controle", json=payload)
+            if r.status_code == 200:
+                inseridos += 1
+            else:
+                st.error(f"Erro na linha {row.to_dict()}: {r.text}")
                 erros += 1
-        st.success(f"{inseridos} controles inseridos. {erros} com erro.")
+        except Exception as e:
+            st.error(f"Erro na linha {row.to_dict()}: {e}")
+            erros += 1
 
-    st.divider()
-    st.subheader("📋 Lista de Riscos Cadastrados")
-    for risco in riscos:
-        with st.expander(f"🔹 {risco['titulo']} ({risco['categoria']})"):
-            st.markdown(f"- **Descrição:** {risco['descricao']}")
-            st.markdown(f"- **Probabilidade:** {risco['probabilidade']}")
-            st.markdown(f"- **Impacto:** {risco['impacto']}")
-            st.markdown(f"- **Status:** {risco['status']}")
-            if st.button("❌ Excluir Risco", key=f"del_risco_{risco['id']}"):
-                try:
-                    r = requests.delete(f"{API_BASE_URL}/risco/{risco['id']}")
-                    if r.status_code == 200:
-                        st.success("Risco excluído com sucesso.")
-                except Exception as e:
-                    st.error(f"Erro ao excluir risco: {e}")
+    st.success(f"{inseridos} controles inseridos com sucesso. {erros} com erro.")
 
-    st.subheader("📋 Lista de Controles Cadastrados")
-    controles = carregar("/controles")
-    for ctrl in controles:
-        with st.expander(f"🛡️ {ctrl['nome']} (Eficiência: {ctrl['eficacia']})"):
-            st.markdown(f"- **Descrição:** {ctrl['descricao']}")
-            st.markdown(f"- **Tipo:** {ctrl['tipo']}")
-            st.markdown(f"- **Responsável:** {ctrl['responsavel']}")
-            if st.button("❌ Excluir Controle", key=f"del_ctrl_{ctrl['id']}"):
-                try:
-                    r = requests.delete(f"{API_BASE_URL}/controle/{ctrl['id']}")
-                    if r.status_code == 200:
-                        st.success("Controle excluído com sucesso.")
-                except Exception as e:
-                    st.error(f"Erro ao excluir controle: {e}")
-                    st.divider()
-    st.subheader("🔎 Painel de Visualização de Riscos e Controles")
 
     # Filtros
     col1, col2, col3 = st.columns(3)
